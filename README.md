@@ -53,7 +53,7 @@ del subset FD001 (motor único, una condición operativa, un modo de fallo):
 > con el mismo formato ejecutando `python generate_synthetic_data.py`. Esto te
 > permite probar el pipeline entero de principio a fin.
 
-## Instalación (usando uv): 
+## Instalación (usando uv)
 
 ```bash
 uv venv          
