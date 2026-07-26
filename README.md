@@ -1,120 +1,96 @@
-# Mantenimiento Predictivo y Análisis de Fallos en Motores Industriales
+# Predictive Maintenance and Failure Analysis in Industrial Engines
 
-Predicción de la **RUL (Remaining Useful Life)** — los ciclos de vida que le
-quedan a un motor antes de fallar — a partir de datos telemáticos
-(vibración, temperatura, presión), usando el dataset **NASA C-MAPSS**.
+Predicting the **RUL (Remaining Useful Life)** — the remaining life cycles of an engine before failure — from telematics data (vibration, temperature, pressure), using the **NASA C-MAPSS** dataset.
 
-## ¿Qué resuelve este proyecto?
+## What does this project solve?
 
-Un fallo inesperado en una cadena de montaje o en un aerogenerador cuesta
-miles de euros por minuto de parada. En vez de esperar a que el motor falle
-(mantenimiento reactivo) o revisarlo cada X horas (mantenimiento preventivo
-ciego), este pipeline estima en tiempo real cuántos ciclos de vida le quedan
-a cada activo, para poder programar la intervención justo antes de que falle.
+An unexpected failure on an assembly line or in a wind turbine costs thousands of euros per minute of downtime. Instead of waiting for the engine to fail (reactive maintenance) or inspecting it every X hours (blind preventive maintenance), this pipeline estimates in real-time how many life cycles each asset has left, so that intervention can be scheduled right before it fails.
 
-## Estructura del repositorio
+## Repository structure
 
-```
+```text
 predictive-maintenance-rul/
-├── generate_synthetic_data.py   # genera datos de prueba con formato C-MAPSS
+├── generate_synthetic_data.py   # generates test data in C-MAPSS format
 ├── requirements.txt
 ├── data/
-│   └── raw/                     # aquí van train_FD001.txt, test_FD001.txt, RUL_FD001.txt
+│   └── raw/                     # train_FD001.txt, test_FD001.txt, RUL_FD001.txt go here
 ├── src/
 │   ├── data/
-│   │   ├── loader.py            # carga de los ficheros crudos
-│   │   ├── preprocessing.py     # filtrado de ruido, cálculo de RUL, normalización
-│   │   └── features.py          # features de ventana + FFT (dominio frecuencial)
+│   │   ├── loader.py            # raw files loading
+│   │   ├── preprocessing.py     # noise filtering, RUL calculation, normalisation
+│   │   └── features.py          # window features + FFT (frequency domain)
 │   ├── models/
-│   │   ├── losses.py            # loss asimétrica custom (penaliza más los falsos negativos)
-│   │   ├── baseline.py          # XGBoost con la loss custom como objetivo
-│   │   └── sequence_models.py   # LSTM y 1D-CNN en PyTorch
+│   │   ├── losses.py            # custom asymmetric loss (penalises false negatives more heavily)
+│   │   ├── baseline.py          # XGBoost with the custom loss as objective
+│   │   └── sequence_models.py   # LSTM and 1D-CNN in PyTorch
 │   ├── eval/
-│   │   └── metrics.py           # RMSE, score de negocio, niveles de alerta
-│   └── train.py                 # orquesta el pipeline completo
+│   │   └── metrics.py           # RMSE, business score, alert levels
+│   └── train.py                 # orchestrates the entire pipeline
 ├── app/
-│   └── dashboard.py             # dashboard Streamlit con alertas por motor
-└── models_saved/                # artefactos entrenados (se generan al ejecutar train.py)
+│   └── dashboard.py             # Streamlit dashboard with per-engine alerts
+└── models_saved/                # trained artefacts (generated when running train.py)
 ```
 
 ## Dataset: NASA C-MAPSS
 
-El dataset real se descarga del **PCoE Data Set Repository** de la NASA:
+The real dataset is downloaded from NASA's **PCoE Data Set Repository**:
 https://www.nasa.gov/intelligent-systems-division/discovery-and-systems-health/pcoe/pcoe-data-set-repository/
 
-Descarga `CMaps.zip`, y copia dentro de `data/raw/` al menos estos tres ficheros
-del subset FD001 (motor único, una condición operativa, un modo de fallo):
+Download `CMaps.zip`, and extract at least these three files from the FD001 subset (single engine, one operating condition, one failure mode) into `data/raw/`:
 
 - `train_FD001.txt`
 - `test_FD001.txt`
 - `RUL_FD001.txt`
 
-> Si todavía no tienes el dataset descargado, puedes generar datos sintéticos
-> con el mismo formato ejecutando `python generate_synthetic_data.py`. Esto te
-> permite probar el pipeline entero de principio a fin.
+> If you haven't downloaded the dataset yet, you can generate synthetic data with the same format by running `python generate_synthetic_data.py`. This allows you to test the entire pipeline from start to finish.
 
-## Instalación (usando uv)
+## Installation (using uv)
 
 ```bash
 uv venv          
-source .venv/bin/activate # en Windows: .venv\Scripts\activate
+source .venv/bin/activate # on Windows: .venv\Scripts\activate
 uv pip install -r requirements.txt
 ```
 
-## Cómo ejecutar el pipeline completo
+## How to run the complete pipeline
 
 ```bash
-# 1. (opcional, solo si no tienes el dataset real) genera datos de prueba
+# 1. (optional, only if you don't have the real dataset) generate test data
 python generate_synthetic_data.py
 
-# 2. entrena baseline (XGBoost) + modelo profundo (LSTM), evalúa y guarda artefactos
+# 2. train baseline (XGBoost) + deep model (LSTM), evaluate and save artefacts
 python -m src.train
 
-# 3. lanza el dashboard interactivo
+# 3. launch the interactive dashboard
 streamlit run app/dashboard.py
 ```
 
-## Flujo técnico
+## Technical flow
 
-**1. Preprocesado y features** (`src/data/`)
-- Filtrado de ruido con media móvil por sensor y por motor.
-- Cálculo de la etiqueta RUL, acotada (RUL cap) siguiendo el criterio estándar
-  de la literatura de C-MAPSS: al inicio de vida del motor la degradación no
-  es observable, así que no tiene sentido pedirle al modelo que la prediga.
-- Features tabulares: media, desviación típica y pendiente en ventana
-  deslizante + **energía espectral por bandas de frecuencia (FFT)** — esta
-  última es la parte de "dominio de la frecuencia" del enunciado, y captura
-  patrones vibratorios periódicos que los estadísticos simples no ven.
-- Secuencias crudas normalizadas para los modelos profundos.
+**1. Pre-processing and features** (`src/data/`)
+- Noise filtering with moving average per sensor and per engine.
+- Calculation of the RUL label, capped (RUL cap) following standard C-MAPSS literature criteria: at the beginning of the engine's life, degradation is not observable, so it makes no sense to ask the model to predict it.
+- Tabular features: mean, standard deviation, and slope in a sliding window + **spectral energy by frequency bands (FFT)** — the latter is the "frequency domain" part of the brief, and captures periodic vibratory patterns that simple statistics miss.
+- Raw sequences normalised for deep models.
 
-**2. Modelado** (`src/models/`)
-- **Baseline**: XGBoost sobre las features tabulares.
-- **Modelo profundo**: LSTM (y alternativa 1D-CNN incluida) en PyTorch sobre
-  ventanas temporales multivariantes.
-- Ambos modelos se entrenan con la **misma función de pérdida asimétrica
-  custom**, para que la comparación sea justa.
+**2. Modelling** (`src/models/`)
+- **Baseline**: XGBoost on the tabular features.
+- **Deep model**: LSTM (and a 1D-CNN alternative included) in PyTorch on multivariate time windows.
+- Both models are trained with the **same custom asymmetric loss function**, so the comparison is fair.
 
-**3. Métrica de negocio** (`src/models/losses.py`)
-- La loss penaliza de forma exponencial y asimétrica el error `y_pred - y_true`:
-  - Si el modelo **sobreestima el RUL** (dice que el motor aguanta más de lo
-    que realmente aguanta → falso negativo de fallo, riesgo de parada
-    catastrófica) → penalización fuerte.
-  - Si el modelo **subestima el RUL** (manda a revisión antes de tiempo →
-    falso positivo, solo cuesta una inspección de más) → penalización suave.
-- Implementada tanto como `nn.Module` para PyTorch como objetivo custom
-  (gradiente + hessiano) para XGBoost.
+**3. Business metric** (`src/models/losses.py`)
+- The loss penalises the `y_pred - y_true` error exponentially and asymmetrically:
+  - If the model **overestimates the RUL** (says the engine will last longer than it actually will → false negative for failure, risk of catastrophic downtime) → harsh penalty.
+  - If the model **underestimates the RUL** (sends for inspection prematurely → false positive, only costs an extra inspection) → mild penalty.
+- Implemented both as an `nn.Module` for PyTorch and as a custom objective (gradient + hessian) for XGBoost.
 
 **4. Dashboard** (`app/dashboard.py`)
-- Métricas comparativas XGBoost vs LSTM.
-- Evolución del RUL real vs predicho por motor.
-- Semáforo de alertas (🟢 normal / 🟡 revisar / 🔴 urgente) para toda la flota.
+- Comparative metrics XGBoost vs LSTM.
+- Evolution of actual vs predicted RUL per engine.
+- Alert traffic light system (🟢 normal / 🟡 inspect / 🔴 urgent) for the entire fleet.
 
-## Extender el proyecto
+## Extending the project
 
-- Cambiar de subset (FD001 → FD002/FD003/FD004, con más condiciones
-  operativas y modos de fallo) solo requiere pasar `subset="FD002"` al loader.
-- Añadir el modelo 1D-CNN al dashboard: ya está implementado en
-  `src/models/sequence_models.py`, solo falta entrenarlo en `train.py` igual
-  que el LSTM y guardar sus predicciones.
-- Sustituir la media móvil por un filtro Savitzky-Golay o wavelets si el
-  ruido de sensor es más agresivo.
+- Changing the subset (FD001 → FD002/FD003/FD004, with more operating conditions and failure modes) only requires passing `subset="FD002"` to the loader.
+- Adding the 1D-CNN model to the dashboard: it is already implemented in `src/models/sequence_models.py`, it just needs to be trained in `train.py` exactly like the LSTM and have its predictions saved.
+- Replacing the moving average with a Savitzky-Golay filter or wavelets if the sensor noise is more aggressive.
