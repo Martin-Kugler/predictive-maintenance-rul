@@ -1,7 +1,7 @@
 """
 src/data/loader.py
-Carga los ficheros crudos de C-MAPSS (train_FDxxx.txt, test_FDxxx.txt, RUL_FDxxx.txt)
-y devuelve DataFrames de pandas con nombres de columna legibles.
+Load the raw C-MAPSS files (train_FDxxx.txt, test_FDxxx.txt, RUL_FDxxx.txt)
+and return pandas DataFrames with human-readable column names.
 """
 
 import os
