@@ -97,7 +97,6 @@ class MinMaxNormalizer:
         
         # Replace zero denominator with 1 to avoid division-by-zero errors on static channels
         denom = (self.max_ - self.min_).replace(0, 1)
-        df[self.cols]
         df[self.cols] = (df[self.cols] - self.min_) / denom
         return df
 
